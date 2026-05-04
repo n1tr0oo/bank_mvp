@@ -183,6 +183,11 @@ async def global_exception_handler(request: Request, exc: Exception):
     return JSONResponse(status_code=500, content={"detail": "Internal server error"})
 
 
-@app.get("/health", tags=["Health"])
+@app.api_route("/health", methods=["GET", "HEAD"], tags=["Health"])
 def health():
+    """Health-check для Docker, Render и uptime-мониторов.
+
+    Поддерживает HEAD (UptimeRobot/Pingdom используют его по умолчанию)
+    и GET (для curl/браузера/Docker healthcheck).
+    """
     return {"status": "ok"}
