@@ -1,0 +1,20 @@
+{% extends "base.html" %}
+{% block title %}Ошибка {{ code }} — Bank Credit MVP{% endblock %}
+{% block content %}
+<div class="auth-shell">
+  <div class="card">
+    <div style="font-size: 48px; font-weight: 600; color: var(--muted); line-height: 1;">{{ code }}</div>
+    <h2 style="margin-top: 8px;">{{ title }}</h2>
+    <p>{{ description }}</p>
+    {% if detail and detail != description %}
+      <p class="muted"><small>Детали: {{ detail }}</small></p>
+    {% endif %}
+    <div class="actions">
+      <a class="btn" href="{{ back_url }}">{{ back_label }}</a>
+      {% if current_user %}
+        <a class="btn secondary" href="/ui/applications">К моим заявкам</a>
+      {% endif %}
+    </div>
+  </div>
+</div>
+{% endblock %}

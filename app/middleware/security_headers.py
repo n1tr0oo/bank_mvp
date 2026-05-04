@@ -66,7 +66,9 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
         )
         response.headers.setdefault("X-Content-Type-Options", "nosniff")
         response.headers.setdefault("X-Frame-Options", "DENY")
-        response.headers.setdefault("Referrer-Policy", "no-referrer")
+        # same-origin: внутри сайта Referer виден (нужен для CSRF-проверки в UI),
+        # на внешних переходах Referer не отправляется (защита приватности).
+        response.headers.setdefault("Referrer-Policy", "same-origin")
         response.headers.setdefault("Content-Security-Policy", csp)
         response.headers.setdefault(
             "Permissions-Policy",

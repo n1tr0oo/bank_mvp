@@ -10,6 +10,7 @@ UI-роутер для Jinja2-страниц.
 """
 from datetime import datetime, timedelta, timezone
 import logging
+from urllib.parse import urlparse
 
 from fastapi import APIRouter, Depends, Form, HTTPException, Request, status
 from fastapi.responses import RedirectResponse
@@ -73,17 +74,47 @@ def _clear_session_cookie(response: RedirectResponse) -> None:
 
 def _check_origin(request: Request) -> None:
     """
-    Минимальная защита от CSRF для UI POST-эндпоинтов:
-    Origin/Referer должен совпадать с хостом запроса.
-    Cookie уже SameSite=Lax, это второй слой.
+    Защита от CSRF для UI POST-эндпоинтов. Многоуровневая проверка:
+
+    1) Fetch Metadata (Sec-Fetch-Site) — самый надёжный современный сигнал.
+       Все актуальные браузеры (Chrome 76+, Firefox 90+, Safari 16+, Edge) шлют
+       этот заголовок ВСЕГДА, и его невозможно подделать со страницы атакующего.
+       Значения:
+         - "same-origin" / "same-site" — пропускаем;
+         - "cross-site" — 403;
+         - "none" — это не cross-context запрос (адресная строка/закладка) — пропускаем.
+
+    2) Fallback (если Sec-Fetch-Site не пришёл — старый браузер): сравниваем
+       netloc Origin/Referer с netloc запроса.
+
+    Cookie уже SameSite=Lax, это второй слой защиты от CSRF на уровне браузера.
     """
-    origin = request.headers.get("origin") or request.headers.get("referer")
-    if origin is None:
-        # Браузеры шлют Origin для всех POST. Если его нет — отвергаем.
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Missing Origin")
-    expected = f"{request.url.scheme}://{request.url.netloc}"
-    if not origin.startswith(expected):
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Origin mismatch")
+    sfs = request.headers.get("sec-fetch-site")
+    if sfs in ("same-origin", "same-site", "none"):
+        return
+    if sfs == "cross-site":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="CSRF: cross-site request blocked",
+        )
+
+    # Sec-Fetch-Site отсутствует → fallback на Origin/Referer.
+    raw = request.headers.get("origin") or request.headers.get("referer")
+    if not raw or raw == "null":
+        # Нет ни Sec-Fetch-Site, ни Origin/Referer → это не браузерный POST.
+        # Скорее всего автоматизированный клиент (curl, скрипт) — отвергаем.
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="CSRF: missing Origin/Referer header",
+        )
+    incoming = urlparse(raw).netloc
+    expected = request.url.netloc
+    if incoming != expected:
+        detail = (
+            f"CSRF: origin mismatch (got '{incoming}', expected '{expected}')"
+            if settings.ENABLE_DOCS else "CSRF: origin mismatch"
+        )
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=detail)
 
 
 def _redirect(url: str, status_code: int = status.HTTP_303_SEE_OTHER) -> RedirectResponse:
@@ -250,35 +281,29 @@ def applications_list(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
+    base_query = db.query(CreditApplication)
     if current_user.role in (UserRole.manager, UserRole.admin):
-        applications = (
-            db.query(CreditApplication)
-            .order_by(CreditApplication.created_at.desc())
-            .limit(500)
-            .all()
-        )
         title = "Все заявки"
-        # Метрики только для manager/admin: считаем по всей таблице, не по выборке.
-        total = db.query(CreditApplication).count()
-        pending = db.query(CreditApplication).filter(
-            CreditApplication.status == ApplicationStatus.pending
-        ).count()
-        approved = db.query(CreditApplication).filter(
-            CreditApplication.status == ApplicationStatus.approved
-        ).count()
-        rejected = db.query(CreditApplication).filter(
-            CreditApplication.status == ApplicationStatus.rejected
-        ).count()
-        metrics = {"total": total, "pending": pending, "approved": approved, "rejected": rejected}
-    else:
         applications = (
-            db.query(CreditApplication)
-            .filter(CreditApplication.client_id == current_user.id)
+            base_query.order_by(CreditApplication.created_at.desc()).limit(500).all()
+        )
+        scope = base_query  # метрики по всей таблице
+    else:
+        title = "Мои заявки"
+        applications = (
+            base_query.filter(CreditApplication.client_id == current_user.id)
             .order_by(CreditApplication.created_at.desc())
             .all()
         )
-        title = "Мои заявки"
-        metrics = None
+        # Метрики для клиента — по его заявкам.
+        scope = base_query.filter(CreditApplication.client_id == current_user.id)
+
+    metrics = {
+        "total": scope.count(),
+        "pending": scope.filter(CreditApplication.status == ApplicationStatus.pending).count(),
+        "approved": scope.filter(CreditApplication.status == ApplicationStatus.approved).count(),
+        "rejected": scope.filter(CreditApplication.status == ApplicationStatus.rejected).count(),
+    }
 
     return templates.TemplateResponse(
         request,

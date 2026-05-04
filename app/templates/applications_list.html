@@ -1,7 +1,7 @@
 {% extends "base.html" %}
 {% block title %}Заявки — Bank Credit MVP{% endblock %}
 {% block content %}
-{% if metrics is defined %}
+{% if metrics %}
 <div class="metric-grid">
   <div class="metric"><div class="label">Всего</div><div class="value">{{ metrics.total }}</div></div>
   <div class="metric"><div class="label">На рассмотрении</div><div class="value">{{ metrics.pending }}</div></div>
