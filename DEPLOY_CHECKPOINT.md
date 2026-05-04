@@ -1,44 +1,34 @@
-# DEPLOY CHECKPOINT — следующий шаг: деплой на Render + UptimeRobot
+# DEPLOY CHECKPOINT — задеплоен ✅
 
-## Где остановились
+## Live URL
 
-Проект полностью готов локально. Следующий шаг — задеплоить на Render (бесплатно) и подключить UptimeRobot чтобы сервер не засыпал.
+**https://bank-mvp-4pnt.onrender.com**
 
----
-
-## Выбранный план деплоя
-
-```
-GitHub (mvp/) → Render (FastAPI + PostgreSQL) + UptimeRobot (keepalive)
-```
-
-- **Render** — хостинг FastAPI + встроенный PostgreSQL бесплатно (90 дней)
-- **UptimeRobot** — пингует `/health` каждые 5 мин, сервер не засыпает
-- **Supabase не нужен** — Postgres встроен в Render
-- **Vercel не подходит** — он для статических сайтов/Next.js, не для нашего FastAPI
+- `/` → редирект на `/ui/login`
+- `/ui/login` → форма входа
+- `/health` → `{"status":"ok"}` (используется UptimeRobot)
+- `/docs` и `/redoc` скрыты в production (`ENABLE_DOCS=false`)
 
 ---
 
-## Текущее состояние проекта
+## Архитектура production
 
-### Git репозиторий
-- Папка: `c:\dequ\Investigation of software source code\mvp\`
-- Ветка: `main`
-- Коммитов: 2
-- Автор: `n1tr0oo <azatmahan@gmail.com>`
-- GitHub: **ещё не запушен** (нужно создать репо и сделать push)
+```
+GitHub (n1tr0oo/bank_mvp)
+        │  push
+        ▼
+   Render Web Service ──────► Render PostgreSQL (Free)
+   bank-credit-mvp              bank-credit-db
+   (Docker, Frankfurt)          (Frankfurt)
+        │
+        ▼
+   UptimeRobot (ping /health каждые 5 мин — сервер не засыпает)
+```
 
-### Что готово в коде
-- FastAPI 0.122 + Jinja2 UI (7 страниц)
-- PostgreSQL через SQLAlchemy ORM
-- JWT аутентификация (PyJWT 2.12, HttpOnly cookie для UI)
-- RBAC: роли client / manager / admin
-- Docker: `Dockerfile` + `docker-compose.yml`
-- `pip-audit`: 0 уязвимостей
-- `bandit`: 2 LOW (false-positive)
-- Seed: 210 пользователей, 220 заявок, 250 аудит-логов
+---
 
-### Демо-аккаунты (после seed)
+## Демо-аккаунты
+
 | Роль | Email | Пароль |
 |------|-------|--------|
 | client | client1@bank.com | Client@1111 |
@@ -46,125 +36,93 @@ GitHub (mvp/) → Render (FastAPI + PostgreSQL) + UptimeRobot (keepalive)
 | manager | manager@bank.com | Manager@3333 |
 | admin | admin@bank.com | Admin@44444 |
 
+После seed создано: 210 пользователей, 220 заявок, 250 аудит-логов.
+
 ---
 
-## Пошаговый план деплоя
+## Render — настройки
 
-### Шаг 1 — Запушить на GitHub (если ещё не сделано)
-```powershell
-cd "c:\dequ\Investigation of software source code\mvp"
-git remote add origin https://github.com/n1tr0oo/<имя-репо>.git
-git push -u origin main
-```
+### Web Service
+- **Name:** bank-credit-mvp
+- **Runtime:** Docker
+- **Branch:** main (auto-deploy при push)
+- **Region:** Frankfurt
+- **Plan:** Free
+- **Health check path:** `/health`
 
-### Шаг 2 — Создать PostgreSQL на Render
-1. Зайти на https://render.com → войти через GitHub
-2. New → **PostgreSQL**
-3. Name: `bank-credit-db`
-4. Plan: **Free**
-5. Нажать **Create Database**
-6. Скопировать **Internal Database URL** (формат `postgresql://...`) — понадобится на шаге 3
-
-### Шаг 3 — Создать Web Service на Render
-1. New → **Web Service**
-2. Подключить GitHub репозиторий `mvp/`
-3. Настройки:
-   - **Name:** `bank-credit-mvp`
-   - **Runtime:** `Docker`
-   - **Branch:** `main`
-   - **Plan:** `Free`
-4. В разделе **Environment Variables** добавить:
-
-| Key | Value |
-|-----|-------|
-| `DATABASE_URL` | Internal Database URL из шага 2 (заменить `postgresql://` на `postgresql+psycopg2://`) |
-| `SECRET_KEY` | сгенерировать: `python -c "import secrets; print(secrets.token_hex(32))"` |
+### Environment Variables
+| Key | Источник |
+|-----|----------|
+| `DATABASE_URL` | External URL из Render Postgres (с `+psycopg2`) |
+| `SECRET_KEY` | сгенерирован через `python -c "import secrets; print(secrets.token_hex(32))"` |
 | `ALGORITHM` | `HS256` |
 | `ACCESS_TOKEN_EXPIRE_MINUTES` | `30` |
 | `ENABLE_DOCS` | `false` |
 | `MAX_BODY_BYTES` | `1048576` |
-| `TRUSTED_PROXIES` | _(оставить пустым)_ |
+| `TRUSTED_PROXIES` | _(пусто)_ |
 
-5. Нажать **Create Web Service** → Render начнёт сборку Docker-образа (~3-5 мин)
-
-### Шаг 4 — Запустить seed на Render
-После первого деплоя в консоли Render (Shell):
-```bash
-python seed.py
-```
-Это создаст 210 пользователей, 220 заявок, 250 аудит-логов.
-
-### Шаг 5 — Подключить UptimeRobot (чтобы сервер не засыпал)
-1. Зайти на https://uptimerobot.com → зарегистрироваться бесплатно
-2. **Add New Monitor**:
-   - Monitor Type: `HTTP(s)`
-   - Friendly Name: `Bank Credit MVP`
-   - URL: `https://<твой-сайт>.onrender.com/health`
-   - Monitoring Interval: **5 minutes**
-3. Нажать **Create Monitor**
-
-Теперь сервер пингуется каждые 5 минут и никогда не засыпает.
+### PostgreSQL
+- **Name:** bank-credit-db
+- **Database:** bank_mvp
+- **Region:** Frankfurt
+- **Plan:** Free (90 дней — после нужно либо пересоздать, либо платить $7/мес)
 
 ---
 
-## Важные нюансы
+## Как обновлять production
 
-### DATABASE_URL: замена протокола
-Render даёт URL вида:
-```
-postgresql://user:pass@host/dbname
-```
-В `.env` / переменной окружения нужно:
-```
-postgresql+psycopg2://user:pass@host/dbname
-```
-Просто добавь `+psycopg2` после `postgresql`.
-
-### ENABLE_DOCS=false в production
-В production `/docs` и `/redoc` скрыты. Это правильно — не меняй.
-
-### Логи Render
-Render → твой сервис → вкладка **Logs** — там в реальном времени видно всё что пишет uvicorn и FastAPI.
-
-### Обновление кода
-После push на GitHub Render **автоматически** пересобирает и деплоит. Ждать ~3-5 минут.
+1. Изменения в коде → коммит в `main`
+2. `git push origin main`
+3. Render автоматически собирает Docker и деплоит (3-5 мин)
+4. Логи: Render → Web Service → **Logs**
 
 ---
 
-## Структура папок (напоминание)
-```
-mvp/                         ← это деплоим на Render
-├── app/                     FastAPI + Jinja2 UI
-├── Dockerfile               Render использует его для сборки
-├── docker-compose.yml       только для локального запуска
-├── requirements.txt
-├── seed.py
-└── .env.example             образец (реальный .env не в git)
-
-mvp_part2/                   ← НЕ деплоим, это архив П3/П4/П5 + AI-версия
-```
-
----
-
-## Что НЕ нужно делать
-- Не пушить `.env` в GitHub (он в `.gitignore`)
-- Не включать `ENABLE_DOCS=true` на production
-- Не деплоить `mvp_part2/` — это только для отчётов
-
----
-
-## Быстрые команды для следующей сессии
+## Запуск seed против production-БД (если нужно повторить)
 
 ```powershell
-# Проверить git статус
 cd "c:\dequ\Investigation of software source code\mvp"
-git log --oneline
-git remote -v
-
-# Если remote ещё не добавлен:
-git remote add origin https://github.com/n1tr0oo/<repo>.git
-git push -u origin main
-
-# Сгенерировать SECRET_KEY для Render:
-python -c "import secrets; print(secrets.token_hex(32))"
+$env:DATABASE_URL = "postgresql+psycopg2://<external_url_from_render>"
+$env:SECRET_KEY = "any-string-for-seed-only"
+$env:PYTHONIOENCODING = "utf-8"
+python seed.py
 ```
+
+Скрипт идемпотентный — допишет до целевых чисел, не сломает существующие данные.
+
+---
+
+## Известные ограничения Free tier
+
+- **PostgreSQL Free:** 90 дней, потом нужно мигрировать или платить
+- **Web Service Free:** засыпает через 15 мин неактивности → мы решили UptimeRobot'ом
+- **Без custom domain** на free tier (только `*.onrender.com`)
+- **Без shell** на free tier — для выполнения команд используем локальный запуск против External URL
+
+---
+
+## Локальный запуск (для разработки)
+
+```powershell
+cd "c:\dequ\Investigation of software source code\mvp"
+docker compose up --build       # вариант с Postgres-контейнером
+# или
+uvicorn app.main:app --reload   # если Postgres стоит локально и в .env правильный DATABASE_URL
+```
+
+См. также `README.md` и `mvp_part2/` (Задание 2 — AI-версия).
+
+---
+
+## Чек-лист сдачи ПР6
+
+- ✅ MVP в Docker (`Dockerfile`, `docker-compose.yml`)
+- ✅ Push в GitHub: <https://github.com/n1tr0oo/bank_mvp>
+- ✅ Live deployment: <https://bank-mvp-4pnt.onrender.com>
+- ✅ README.md с описанием, инструкцией, демо-аккаунтами
+- ✅ Отчёт П6 (Задание 1): `P6_Makhan_Azat.md/.docx`
+- ✅ Отчёт П6 (Задание 2): `mvp_part2/P6_Task2_Makhan_Azat.md/.docx`
+- ✅ Аудит pip-audit: 0 уязвимостей
+- ✅ Аудит bandit: 2 LOW false-positive
+- ✅ Секреты в `.env` (исключён из git), production secrets в Render env vars
+- ✅ UptimeRobot ping `/health` каждые 5 мин
