@@ -22,16 +22,14 @@ dist/
 build/
 
 # Отчёты SAST/SCA — генерируются на каждом запуске.
-# Финальные _p6 и _ai отчёты коммитим как доказательство анализа.
+# Финальные _p6 отчёты коммитим как доказательство анализа.
 bandit_report.txt
 bandit_report_*.txt
 pip_audit_report.txt
 pip_audit_report_*.txt
 !bandit_report_p6.txt
-!bandit_report_ai.txt
 !pip_audit_report_p6.txt
 !pip_audit_report_p6.json
-!pip_audit_report_ai.txt
 
 # Артефакты IDE
 .vscode/

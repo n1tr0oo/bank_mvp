@@ -1,9 +1,0 @@
-body { font-family: Arial, sans-serif; margin: 20px; }
-nav { background: #eee; padding: 10px; margin-bottom: 20px; }
-nav a { margin-right: 14px; }
-nav span { float: right; margin-right: 14px; }
-form label { display: block; margin: 8px 0; }
-input, textarea, select { padding: 4px; }
-button { padding: 6px 12px; margin-top: 8px; }
-.flash { background: #d1ecf1; padding: 8px; margin-bottom: 10px; }
-.error { color: red; }

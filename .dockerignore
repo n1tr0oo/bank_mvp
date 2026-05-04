@@ -24,4 +24,3 @@ reset_passwords.py
 init_db.py
 smoke_test_*.py
 big.json
-mvp_ai/
