@@ -1,0 +1,17 @@
+{% extends "base.html" %}
+{% block content %}
+<h2>Пользователи (admin)</h2>
+{% if session.get('role') == 'admin' %}
+<table border="1" cellpadding="6">
+  <tr><th>ID</th><th>Email</th><th>ФИО</th><th>Роль</th></tr>
+  {% for u in users %}
+  <tr>
+    <td>{{ u['id'] }}</td><td>{{ u['email'] }}</td>
+    <td>{{ u['full_name'] }}</td><td>{{ u['role'] }}</td>
+  </tr>
+  {% endfor %}
+</table>
+{% else %}
+<p>Доступ только для admin.</p>
+{% endif %}
+{% endblock %}

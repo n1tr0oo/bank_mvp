@@ -1,0 +1,49 @@
+# Секреты — никогда не коммитим.
+.env
+.env.*
+!.env.example
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.egg-info/
+.venv/
+venv/
+.python-version
+
+# SQLite (локальные)
+*.db
+*.sqlite3
+test_p6.db
+
+# Сборки/дистрибуция
+dist/
+build/
+
+# Отчёты SAST/SCA — генерируются на каждом запуске.
+# Финальные _p6 и _ai отчёты коммитим как доказательство анализа.
+bandit_report.txt
+bandit_report_*.txt
+pip_audit_report.txt
+pip_audit_report_*.txt
+!bandit_report_p6.txt
+!bandit_report_ai.txt
+!pip_audit_report_p6.txt
+!pip_audit_report_p6.json
+!pip_audit_report_ai.txt
+
+# Артефакты IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+.DS_Store
+Thumbs.db
+
+# Промежуточные docx-копии (исходный markdown коммитится, .docx — артефакт сборки)
+*.docx
+!P*_Makhan_Azat.docx
+
+# Утилитарные локальные файлы
+big.json

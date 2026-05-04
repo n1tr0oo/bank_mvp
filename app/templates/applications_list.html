@@ -1,0 +1,53 @@
+{% extends "base.html" %}
+{% block title %}Заявки — Bank Credit MVP{% endblock %}
+{% block content %}
+{% if metrics is defined %}
+<div class="metric-grid">
+  <div class="metric"><div class="label">Всего</div><div class="value">{{ metrics.total }}</div></div>
+  <div class="metric"><div class="label">На рассмотрении</div><div class="value">{{ metrics.pending }}</div></div>
+  <div class="metric"><div class="label">Одобрено</div><div class="value">{{ metrics.approved }}</div></div>
+  <div class="metric"><div class="label">Отклонено</div><div class="value">{{ metrics.rejected }}</div></div>
+</div>
+{% endif %}
+
+<div class="card">
+  <div class="toolbar">
+    <h2>{{ title }}</h2>
+    {% if current_user.role.value == 'client' %}
+      <a class="btn" href="/ui/applications/new">+ Новая заявка</a>
+    {% endif %}
+  </div>
+  {% if applications %}
+  <table>
+    <thead>
+      <tr>
+        <th>#</th>
+        {% if current_user.role.value != 'client' %}<th>Клиент</th>{% endif %}
+        <th>Сумма</th>
+        <th>Срок</th>
+        <th>Цель</th>
+        <th>Статус</th>
+        <th>Создана</th>
+        <th></th>
+      </tr>
+    </thead>
+    <tbody>
+    {% for a in applications %}
+      <tr>
+        <td>{{ a.id }}</td>
+        {% if current_user.role.value != 'client' %}<td>{{ a.client_id }}</td>{% endif %}
+        <td>{{ '%.2f'|format(a.amount) }}</td>
+        <td>{{ a.term_months }} мес.</td>
+        <td>{{ a.purpose }}</td>
+        <td><span class="badge {{ a.status.value }}">{{ a.status.value }}</span></td>
+        <td>{{ a.created_at.strftime('%Y-%m-%d %H:%M') }}</td>
+        <td><a href="/ui/applications/{{ a.id }}">Открыть</a></td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <p class="muted">Заявок пока нет.</p>
+  {% endif %}
+</div>
+{% endblock %}

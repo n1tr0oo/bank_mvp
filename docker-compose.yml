@@ -1,0 +1,48 @@
+# P6 — Bank Credit MVP: воспроизводимое окружение.
+# Запуск:   docker compose up --build
+# Seed:     docker compose run --rm app python seed.py
+# Все секреты берутся из .env (не коммитится — см. .gitignore).
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-bank_app}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-changeme_local_only}
+      POSTGRES_DB: ${POSTGRES_DB:-bank_mvp}
+    volumes:
+      - bank_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER:-bank_app} -d $${POSTGRES_DB:-bank_mvp}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    # Порт наружу не пробрасываем — БД доступна только внутри сети compose.
+    restart: unless-stopped
+
+  app:
+    build: .
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql+psycopg2://${POSTGRES_USER:-bank_app}:${POSTGRES_PASSWORD:-changeme_local_only}@db:5432/${POSTGRES_DB:-bank_mvp}
+      SECRET_KEY: ${SECRET_KEY:?SECRET_KEY is required (set in .env)}
+      ALGORITHM: ${ALGORITHM:-HS256}
+      ACCESS_TOKEN_EXPIRE_MINUTES: ${ACCESS_TOKEN_EXPIRE_MINUTES:-30}
+      ENABLE_DOCS: ${ENABLE_DOCS:-false}
+      MAX_BODY_BYTES: ${MAX_BODY_BYTES:-1048576}
+      TRUSTED_PROXIES: ${TRUSTED_PROXIES:-}
+    ports:
+      - "${APP_PORT:-8000}:8000"
+    restart: unless-stopped
+    # read_only + tmpfs/healthcheck — дополнительные слои изоляции.
+    read_only: true
+    tmpfs:
+      - /tmp
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+
+volumes:
+  bank_pgdata:

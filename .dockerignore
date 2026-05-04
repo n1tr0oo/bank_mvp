@@ -1,0 +1,27 @@
+# Не тянем в образ артефакты разработки/отчёты.
+__pycache__
+*.pyc
+*.pyo
+*.db
+.env
+.git
+.gitignore
+.dockerignore
+docker-compose.yml
+Dockerfile
+
+# Docs, отчёты, артефакты
+*.md
+*.docx
+*.pdf
+*.txt
+!requirements.txt
+
+# Утилиты репозитория
+md_to_docx.py
+migrate_*.py
+reset_passwords.py
+init_db.py
+smoke_test_*.py
+big.json
+mvp_ai/

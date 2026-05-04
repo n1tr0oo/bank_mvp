@@ -1,0 +1,30 @@
+{% extends "base.html" %}
+{% block title %}Регистрация — Bank Credit MVP{% endblock %}
+{% block content %}
+<div class="auth-shell">
+  <div class="card">
+    <h2>Регистрация клиента</h2>
+    <form action="/ui/register" method="post">
+      <div class="form-row">
+        <label for="full_name">ФИО</label>
+        <input type="text" id="full_name" name="full_name" required minlength="2" maxlength="255"
+               value="{{ full_name|default('') }}">
+      </div>
+      <div class="form-row">
+        <label for="email">Email</label>
+        <input type="email" id="email" name="email" required maxlength="255"
+               value="{{ email|default('') }}">
+      </div>
+      <div class="form-row">
+        <label for="password">Пароль</label>
+        <input type="password" id="password" name="password" required minlength="10" maxlength="128">
+        <small class="muted">≥10 символов, минимум 3 класса: строчные, заглавные, цифры, спецсимволы.</small>
+      </div>
+      <div class="actions">
+        <button class="btn" type="submit">Создать аккаунт</button>
+        <a class="btn secondary" href="/ui/login">Назад ко входу</a>
+      </div>
+    </form>
+  </div>
+</div>
+{% endblock %}

@@ -1,0 +1,25 @@
+{% extends "base.html" %}
+{% block title %}Вход — Bank Credit MVP{% endblock %}
+{% block content %}
+<div class="auth-shell">
+  <div class="card">
+    <h2>Вход в систему</h2>
+    <form action="/ui/login" method="post">
+      <div class="form-row">
+        <label for="email">Email</label>
+        <input type="email" id="email" name="email" required maxlength="255" autofocus
+               value="{{ email|default('') }}">
+      </div>
+      <div class="form-row">
+        <label for="password">Пароль</label>
+        <input type="password" id="password" name="password" required minlength="8" maxlength="128">
+      </div>
+      <div class="actions">
+        <button class="btn" type="submit">Войти</button>
+        <a class="btn secondary" href="/ui/register">Регистрация</a>
+      </div>
+    </form>
+    <p class="muted" style="margin-top:16px">Демо-аккаунты см. в README.md.</p>
+  </div>
+</div>
+{% endblock %}

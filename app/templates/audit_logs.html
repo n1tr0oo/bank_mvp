@@ -1,0 +1,41 @@
+{% extends "base.html" %}
+{% block title %}Аудит-логи — Bank Credit MVP{% endblock %}
+{% block content %}
+<div class="card">
+  <div class="toolbar">
+    <h2>Аудит-логи</h2>
+    {% if current_user.role.value == 'admin' %}
+      <a class="btn secondary" href="/audit-logs/export">Экспорт CSV</a>
+    {% endif %}
+  </div>
+  {% if logs %}
+  <table>
+    <thead>
+      <tr>
+        <th>#</th>
+        <th>Время (UTC)</th>
+        <th>Actor ID</th>
+        <th>Действие</th>
+        <th>Объект</th>
+        <th>IP</th>
+      </tr>
+    </thead>
+    <tbody>
+    {% for log in logs %}
+      <tr>
+        <td>{{ log.id }}</td>
+        <td>{{ log.created_at.strftime('%Y-%m-%d %H:%M:%S') }}</td>
+        <td>{{ log.actor_id }}</td>
+        <td>{{ log.action }}</td>
+        <td>{{ log.target_type or '—' }}{% if log.target_id %}:{{ log.target_id }}{% endif %}</td>
+        <td>{{ log.ip_address or '—' }}</td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  <p class="muted" style="margin-top:12px">Показано последних {{ logs|length }} записей.</p>
+  {% else %}
+  <p class="muted">Записей нет.</p>
+  {% endif %}
+</div>
+{% endblock %}

@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="referrer" content="no-referrer">
+  <title>{% block title %}Bank Credit MVP{% endblock %}</title>
+  <link rel="stylesheet" href="/static/styles.css">
+</head>
+<body>
+  {% if current_user %}
+  <header class="topbar">
+    <div class="brand">Bank Credit MVP</div>
+    <nav>
+      <a href="/ui/applications">Заявки</a>
+      {% if current_user.role.value == 'client' %}
+        <a href="/ui/applications/new">Новая заявка</a>
+      {% endif %}
+      {% if current_user.role.value in ('manager', 'admin') %}
+        <a href="/ui/audit-logs">Аудит-логи</a>
+      {% endif %}
+      {% if current_user.role.value == 'admin' %}
+        <a href="/ui/admin/users">Пользователи</a>
+      {% endif %}
+    </nav>
+    <div class="userbox">
+      <span>{{ current_user.full_name }}</span>
+      <span class="badge role-{{ current_user.role.value }}">{{ current_user.role.value }}</span>
+      <form action="/ui/logout" method="post" class="inline-form">
+        <button class="btn secondary" type="submit">Выйти</button>
+      </form>
+    </div>
+  </header>
+  {% endif %}
+  <main>
+    {% if error %}<div class="error">{{ error }}</div>{% endif %}
+    {% if notice %}<div class="notice">{{ notice }}</div>{% endif %}
+    {% block content %}{% endblock %}
+  </main>
+</body>
+</html>

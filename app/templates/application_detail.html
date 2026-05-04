@@ -1,0 +1,48 @@
+{% extends "base.html" %}
+{% block title %}Заявка №{{ application.id }} — Bank Credit MVP{% endblock %}
+{% block content %}
+<div class="card">
+  <div class="toolbar">
+    <h2>Заявка №{{ application.id }}</h2>
+    <span class="badge {{ application.status.value }}">{{ application.status.value }}</span>
+  </div>
+  <dl class="kv">
+    <dt>Клиент (ID)</dt><dd>{{ application.client_id }}</dd>
+    <dt>Сумма</dt><dd>{{ '%.2f'|format(application.amount) }}</dd>
+    <dt>Срок</dt><dd>{{ application.term_months }} мес.</dd>
+    <dt>Цель</dt><dd>{{ application.purpose }}</dd>
+    <dt>Создана</dt><dd>{{ application.created_at.strftime('%Y-%m-%d %H:%M') }}</dd>
+    {% if application.decided_at %}
+      <dt>Решение принято</dt><dd>{{ application.decided_at.strftime('%Y-%m-%d %H:%M') }}</dd>
+      <dt>Менеджер (ID)</dt><dd>{{ application.decided_by }}</dd>
+      <dt>Комментарий</dt><dd>{{ application.manager_comment }}</dd>
+    {% endif %}
+  </dl>
+  <div>
+    <a class="btn secondary" href="/ui/applications">К списку</a>
+  </div>
+</div>
+
+{% if can_decide %}
+<div class="card">
+  <h2>Принять решение</h2>
+  <form action="/ui/applications/{{ application.id }}/decision" method="post">
+    <div class="form-row">
+      <label for="decision">Решение</label>
+      <select id="decision" name="decision" required>
+        <option value="approved">Одобрить</option>
+        <option value="rejected">Отклонить</option>
+      </select>
+    </div>
+    <div class="form-row">
+      <label for="manager_comment">Комментарий</label>
+      <textarea id="manager_comment" name="manager_comment" rows="3" minlength="5" maxlength="1000" required></textarea>
+      <small class="muted">5–1000 символов. Используется в журнале и виден клиенту.</small>
+    </div>
+    <div class="actions">
+      <button class="btn success" type="submit">Сохранить решение</button>
+    </div>
+  </form>
+</div>
+{% endif %}
+{% endblock %}
