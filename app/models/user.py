@@ -1,5 +1,6 @@
 import enum
 from datetime import datetime
+from typing import Optional
 
 from sqlalchemy import Boolean, DateTime, Enum, Integer, String, func
 from sqlalchemy.orm import Mapped, mapped_column, relationship
@@ -25,6 +26,11 @@ class User(Base):
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )
+
+    # 2FA (TOTP, RFC 6238). totp_secret хранится в base32, длина 32 символа.
+    # totp_enabled = False до тех пор, пока пользователь не подтвердит первый код.
+    totp_secret: Mapped[Optional[str]] = mapped_column(String(32), nullable=True)
+    totp_enabled: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
 
     applications = relationship(
         "CreditApplication", foreign_keys="CreditApplication.client_id", back_populates="client"

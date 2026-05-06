@@ -1,0 +1,70 @@
+{% extends "base.html" %}
+{% block title %}Двухфакторная аутентификация — Bank Credit MVP{% endblock %}
+{% block content %}
+<div class="card">
+  <div class="toolbar">
+    <h2>Двухфакторная аутентификация (2FA)</h2>
+    {% if enabled %}
+      <span class="badge approved">включена</span>
+    {% else %}
+      <span class="badge pending">выключена</span>
+    {% endif %}
+  </div>
+
+  {% if enabled %}
+    <p>Двухфакторная аутентификация для вашего аккаунта <strong>включена</strong>. При каждом входе после ввода пароля система будет запрашивать 6-значный код из приложения-аутентификатора.</p>
+
+    <h3 style="margin-top:24px">Отключить 2FA</h3>
+    <p class="muted">Чтобы отключить 2FA, введите текущий код из приложения-аутентификатора.</p>
+    <form action="/ui/2fa/disable" method="post" autocomplete="off">
+      <div class="form-row">
+        <label for="code">Текущий код</label>
+        <input type="text" id="code" name="code" required
+               inputmode="numeric" pattern="[0-9]{6}" maxlength="6"
+               placeholder="000000">
+      </div>
+      <div class="actions">
+        <button class="btn danger" type="submit">Отключить 2FA</button>
+        <a class="btn secondary" href="/ui/applications">Назад</a>
+      </div>
+    </form>
+  {% else %}
+    <p>Двухфакторная аутентификация добавляет второй уровень защиты к вашему аккаунту: даже если злоумышленник узнает пароль, он не сможет войти без кода из вашего телефона.</p>
+
+    <h3 style="margin-top:24px">Шаг 1. Установите приложение</h3>
+    <p>Установите на телефон одно из приложений-аутентификаторов:</p>
+    <ul>
+      <li><strong>Google Authenticator</strong> (iOS / Android)</li>
+      <li><strong>Microsoft Authenticator</strong> (iOS / Android)</li>
+      <li><strong>Authy</strong> (iOS / Android / desktop)</li>
+      <li><strong>1Password</strong> (если уже используете)</li>
+    </ul>
+
+    <h3 style="margin-top:24px">Шаг 2. Отсканируйте QR-код</h3>
+    <p>Откройте приложение, добавьте новый аккаунт сканированием QR-кода:</p>
+    <div style="text-align:center; margin: 16px 0;">
+      <img src="{{ qr_data_url }}" alt="QR для настройки 2FA"
+           style="width:240px; height:240px; border:1px solid var(--border); border-radius:8px; padding:8px; background:#fff;">
+    </div>
+    <p class="muted" style="text-align:center">
+      <small>Если сканер недоступен — введите секрет вручную:</small><br>
+      <code style="font-family:monospace; font-size:14px; letter-spacing:1px; background:#f3f4f6; padding:6px 10px; border-radius:4px; display:inline-block; margin-top:6px;">{{ secret }}</code>
+    </p>
+
+    <h3 style="margin-top:24px">Шаг 3. Подтвердите код</h3>
+    <p class="muted">Введите код, который сейчас отображается в приложении.</p>
+    <form action="/ui/2fa/enable" method="post" autocomplete="off">
+      <div class="form-row">
+        <label for="code">6-значный код</label>
+        <input type="text" id="code" name="code" required autofocus
+               inputmode="numeric" pattern="[0-9]{6}" maxlength="6"
+               placeholder="000000">
+      </div>
+      <div class="actions">
+        <button class="btn success" type="submit">Включить 2FA</button>
+        <a class="btn secondary" href="/ui/applications">Отмена</a>
+      </div>
+    </form>
+  {% endif %}
+</div>
+{% endblock %}

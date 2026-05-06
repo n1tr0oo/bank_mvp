@@ -26,6 +26,9 @@
     <div class="userbox">
       <span>{{ current_user.full_name }}</span>
       <span class="badge role-{{ current_user.role.value }}">{{ current_user.role.value }}</span>
+      <a href="/ui/2fa" title="Двухфакторная аутентификация">
+        2FA{% if current_user.totp_enabled %} ✓{% endif %}
+      </a>
       <form action="/ui/logout" method="post" class="inline-form">
         <button class="btn secondary" type="submit">Выйти</button>
       </form>

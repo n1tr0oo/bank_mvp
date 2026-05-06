@@ -40,10 +40,16 @@ from app.services.security import (
     hash_password,
     verify_password,
 )
+from app.services import totp as totp_svc
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
 templates = Jinja2Templates(directory="app/templates")
+
+# Cookie для второго фактора (между шагами login → 2fa).
+# Хранит short-lived JWT с claim {"stage": "pending_2fa", "sub": user_id}.
+TWOFA_COOKIE_NAME = "twofa_pending"
+TWOFA_COOKIE_TTL_SECONDS = 300  # 5 минут на ввод кода
 
 
 # ---------- helpers ----------
@@ -70,6 +76,54 @@ def _set_session_cookie(response: RedirectResponse, token: str) -> None:
 
 def _clear_session_cookie(response: RedirectResponse) -> None:
     response.delete_cookie(key=SESSION_COOKIE_NAME, path="/")
+
+
+def _set_twofa_cookie(response: RedirectResponse, token: str) -> None:
+    """Cookie короткой 2FA-стадии (5 минут на ввод кода)."""
+    response.set_cookie(
+        key=TWOFA_COOKIE_NAME,
+        value=token,
+        httponly=True,
+        secure=not settings.ENABLE_DOCS,
+        samesite="lax",
+        max_age=TWOFA_COOKIE_TTL_SECONDS,
+        path="/",
+    )
+
+
+def _clear_twofa_cookie(response: RedirectResponse) -> None:
+    response.delete_cookie(key=TWOFA_COOKIE_NAME, path="/")
+
+
+def _create_twofa_pending_token(user_id: int) -> str:
+    """JWT для пары login→2fa. TTL 5 минут, отдельный claim 'stage'."""
+    from datetime import datetime as _dt, timedelta as _td, timezone as _tz
+    import uuid as _uuid
+    import jwt as _jwt
+    payload = {
+        "sub": str(user_id),
+        "stage": "pending_2fa",
+        "jti": str(_uuid.uuid4()),
+        "exp": _dt.now(_tz.utc) + _td(seconds=TWOFA_COOKIE_TTL_SECONDS),
+    }
+    return _jwt.encode(payload, settings.SECRET_KEY, algorithm=settings.ALGORITHM)
+
+
+def _read_twofa_pending_user_id(request: Request) -> int | None:
+    """Читает user_id из twofa_pending-cookie. Возвращает None при ошибке."""
+    raw = request.cookies.get(TWOFA_COOKIE_NAME)
+    if not raw:
+        return None
+    try:
+        payload = decode_access_token(raw)
+        if payload.get("stage") != "pending_2fa":
+            return None
+        sub = payload.get("sub")
+        if not isinstance(sub, str):
+            return None
+        return int(sub)
+    except Exception:  # noqa: BLE001 — JWT истёк / битый — корректно вернуть None
+        return None
 
 
 def _check_origin(request: Request) -> None:
@@ -171,10 +225,80 @@ def login_submit(
             status_code=status.HTTP_401_UNAUTHORIZED,
         )
 
+    # Если у пользователя включена 2FA — выдаём временную cookie и редиректим
+    # на форму ввода кода. Полноценный session_token выдаётся только после
+    # успешной проверки TOTP (см. login_2fa_submit).
+    if user.totp_enabled:
+        twofa_token = _create_twofa_pending_token(user.id)
+        response = _redirect("/ui/login/2fa")
+        _set_twofa_cookie(response, twofa_token)
+        write_audit_log(
+            db, actor_id=user.id, action="LOGIN_PENDING_2FA",
+            ip_address=get_client_ip(request),
+        )
+        return response
+
     write_audit_log(db, actor_id=user.id, action="LOGIN", ip_address=get_client_ip(request))
     token = create_access_token({"sub": str(user.id), "role": user.role})
     response = _redirect("/ui/applications")
     _set_session_cookie(response, token)
+    return response
+
+
+@router.get("/ui/login/2fa")
+def login_2fa_page(request: Request):
+    """Форма ввода TOTP-кода после успешной проверки пароля."""
+    user_id = _read_twofa_pending_user_id(request)
+    if user_id is None:
+        # Нет валидной 2FA-cookie → отправляем заново на логин.
+        response = _redirect("/ui/login")
+        _clear_twofa_cookie(response)
+        return response
+    return templates.TemplateResponse(
+        request, "login_2fa.html", {"current_user": None}
+    )
+
+
+@router.post("/ui/login/2fa")
+def login_2fa_submit(
+    request: Request,
+    code: str = Form(...),
+    db: Session = Depends(get_db),
+):
+    _check_origin(request)
+    user_id = _read_twofa_pending_user_id(request)
+    if user_id is None:
+        response = _redirect("/ui/login")
+        _clear_twofa_cookie(response)
+        return response
+
+    user = db.query(User).filter(
+        User.id == user_id, User.is_active.is_(True)
+    ).first()
+    if user is None or not user.totp_enabled or not user.totp_secret:
+        response = _redirect("/ui/login")
+        _clear_twofa_cookie(response)
+        return response
+
+    if not totp_svc.verify(user.totp_secret, code):
+        write_audit_log(
+            db, actor_id=user.id, action="LOGIN_2FA_FAILED",
+            ip_address=get_client_ip(request),
+        )
+        return templates.TemplateResponse(
+            request,
+            "login_2fa.html",
+            {"current_user": None, "error": "Неверный код. Попробуйте ещё раз."},
+            status_code=status.HTTP_401_UNAUTHORIZED,
+        )
+
+    write_audit_log(
+        db, actor_id=user.id, action="LOGIN", ip_address=get_client_ip(request),
+    )
+    token = create_access_token({"sub": str(user.id), "role": user.role})
+    response = _redirect("/ui/applications")
+    _set_session_cookie(response, token)
+    _clear_twofa_cookie(response)
     return response
 
 
@@ -270,6 +394,119 @@ def logout_submit(
     response = _redirect("/ui/login")
     _clear_session_cookie(response)
     return response
+
+
+# ---------- 2FA settings ----------
+
+
+@router.get("/ui/2fa")
+def twofa_settings_page(
+    request: Request,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Страница настройки 2FA.
+
+    Если 2FA включена — статус + форма отключения.
+    Если 2FA выключена — генерируем (или переиспользуем) totp_secret,
+    рендерим QR-код для сканирования и поле для ввода первого кода.
+    """
+    if current_user.totp_enabled:
+        return templates.TemplateResponse(
+            request, "twofa_settings.html",
+            {"current_user": current_user, "enabled": True},
+        )
+
+    # Если у пользователя ещё нет secret'а (или он сбросил 2FA) — генерируем.
+    # Иначе переиспользуем тот, что уже сохранён, чтобы не делать новый QR
+    # при простом обновлении страницы.
+    if not current_user.totp_secret:
+        current_user.totp_secret = totp_svc.generate_secret()
+        db.add(current_user)
+        db.commit()
+        db.refresh(current_user)
+
+    uri = totp_svc.provisioning_uri(current_user.totp_secret, current_user.email)
+    qr = totp_svc.qr_data_url(uri)
+    return templates.TemplateResponse(
+        request, "twofa_settings.html",
+        {
+            "current_user": current_user,
+            "enabled": False,
+            "secret": current_user.totp_secret,
+            "qr_data_url": qr,
+        },
+    )
+
+
+@router.post("/ui/2fa/enable")
+def twofa_enable(
+    request: Request,
+    code: str = Form(...),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Подтверждение первого кода → включение 2FA."""
+    _check_origin(request)
+    if current_user.totp_enabled:
+        return _redirect("/ui/2fa")
+    if not current_user.totp_secret:
+        # Секрет не сгенерирован (например, перешли сразу на /enable) — показать форму setup.
+        return _redirect("/ui/2fa")
+    if not totp_svc.verify(current_user.totp_secret, code):
+        return templates.TemplateResponse(
+            request, "twofa_settings.html",
+            {
+                "current_user": current_user,
+                "enabled": False,
+                "secret": current_user.totp_secret,
+                "qr_data_url": totp_svc.qr_data_url(
+                    totp_svc.provisioning_uri(current_user.totp_secret, current_user.email)
+                ),
+                "error": "Неверный код. Проверьте время на телефоне и попробуйте снова.",
+            },
+            status_code=status.HTTP_400_BAD_REQUEST,
+        )
+    current_user.totp_enabled = True
+    db.add(current_user)
+    db.commit()
+    write_audit_log(
+        db, actor_id=current_user.id, action="2FA_ENABLED",
+        ip_address=get_client_ip(request),
+    )
+    return _redirect("/ui/2fa")
+
+
+@router.post("/ui/2fa/disable")
+def twofa_disable(
+    request: Request,
+    code: str = Form(...),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Отключение 2FA с подтверждением кода (защита от XSRF/угона сессии)."""
+    _check_origin(request)
+    if not current_user.totp_enabled or not current_user.totp_secret:
+        return _redirect("/ui/2fa")
+    if not totp_svc.verify(current_user.totp_secret, code):
+        return templates.TemplateResponse(
+            request, "twofa_settings.html",
+            {
+                "current_user": current_user,
+                "enabled": True,
+                "error": "Неверный код. 2FA не отключена.",
+            },
+            status_code=status.HTTP_400_BAD_REQUEST,
+        )
+    current_user.totp_enabled = False
+    current_user.totp_secret = None
+    db.add(current_user)
+    db.commit()
+    write_audit_log(
+        db, actor_id=current_user.id, action="2FA_DISABLED",
+        ip_address=get_client_ip(request),
+    )
+    return _redirect("/ui/2fa")
 
 
 # ---------- applications ----------

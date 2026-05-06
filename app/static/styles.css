@@ -70,6 +70,15 @@ header.topbar .userbox {
   color: #d1d5db;
 }
 
+header.topbar .userbox a {
+  color: #d1d5db;
+}
+
+header.topbar .userbox a:hover {
+  color: #fff;
+  text-decoration: none;
+}
+
 main {
   max-width: 1100px;
   margin: 24px auto;

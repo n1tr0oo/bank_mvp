@@ -1,0 +1,25 @@
+{% extends "base.html" %}
+{% block title %}Двухфакторный вход — Bank Credit MVP{% endblock %}
+{% block content %}
+<div class="auth-shell">
+  <div class="card">
+    <h2>Подтверждение входа</h2>
+    <p class="muted">Введите 6-значный код из приложения-аутентификатора (Google Authenticator, Authy, Microsoft Authenticator и т.д.).</p>
+    <form action="/ui/login/2fa" method="post" autocomplete="off">
+      <div class="form-row">
+        <label for="code">Код</label>
+        <input type="text" id="code" name="code" required autofocus
+               inputmode="numeric" pattern="[0-9]{6}" maxlength="6"
+               placeholder="000000">
+      </div>
+      <div class="actions">
+        <button class="btn" type="submit">Подтвердить</button>
+        <a class="btn secondary" href="/ui/login">Отмена</a>
+      </div>
+    </form>
+    <p class="muted" style="margin-top:16px">
+      <small>Сессия для ввода кода действительна 5 минут.</small>
+    </p>
+  </div>
+</div>
+{% endblock %}
